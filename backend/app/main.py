@@ -1,24 +1,47 @@
-"""FastAPI app for the ORE backend (scaffold).
-
-Run:
-    uvicorn app.main:app --reload --port 8000
-or:
-    make run
-"""
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from routes.upload import router as upload_router
+from routes.notes import router as notes_router
+from routes.viva import router as viva_router
+from routes.ask import router as ask_router
+
 
 app = FastAPI(
-    title="ORE Backend",
-    description="HTTP API for the ORE platform (Kaju Open Source).",
-    version="0.0.1",
+    title="Kaju Backend",
+    description="AI Revision Notes Generator",
+    version="1.0"
 )
 
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+app.include_router(upload_router)
+app.include_router(notes_router)
+app.include_router(viva_router)
+app.include_router(ask_router)
+
+
 @app.get("/")
-def root():
-    return {"status": "online", "service": "ore-backend"}
+def home():
+    return {
+        "message": "Welcome to Kaju Backend!"
+    }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "Running"
+    }
