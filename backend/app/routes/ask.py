@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from Ai.answer_questions import answer_questions
+from Ai.answer_questions import answer_questions_with_citations
 
 router = APIRouter()
 
@@ -10,9 +10,5 @@ class Question(BaseModel):
 
 @router.post("/ask")
 def ask(request: Question):
-
-    answer = answer_questions(request.question)
-
-    return {
-        "answer": answer
-    }
+    result = answer_questions_with_citations(request.question)
+    return result

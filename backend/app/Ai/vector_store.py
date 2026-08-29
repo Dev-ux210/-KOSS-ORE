@@ -8,22 +8,39 @@ collection = client.get_or_create_collection(
 )
 
 #Chunk store
-def store_chunk(chunk_id, text, page):
+def store_chunk(chunk_id, text, page, source=""):
+    metadata = {"page": page}
+    if source:
+        metadata["source"] = source
     collection.add(
         ids=[str(chunk_id)],
         documents=[text],
         embeddings=[get_embedding(text)],
-        metadatas=[{"page": page}]
+        metadatas=[metadata]
     )
 
 
 #Chunk search
 def search(query, n_results=3):
+    if collection.count() == 0:
+        return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
     results = collection.query(
         query_embeddings=[get_embedding(query)],
-        n_results=n_results
+        n_results=min(n_results, collection.count())
     )
     return results
+
+
+def delete_document_chunks(source):
+    try:
+        collection.delete(where={"source": source})
+    except Exception:
+        pass
+
+
+def get_total_chunks():
+    return collection.count()
+
 
 """
 # Example: Store data
