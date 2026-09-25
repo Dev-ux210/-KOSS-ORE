@@ -8,13 +8,17 @@ dependencies = [
     "uvicorn",
     "pydantic",
     "python-multipart",
+    "chromadb",
+    "pymupdf",
+    "ollama",
+    "httpx",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "httpx",
     "ruff",
+    "pyinstaller",
 ]
 
 [tool.pytest.ini_options]

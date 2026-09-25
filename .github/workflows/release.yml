@@ -1,0 +1,119 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-backend:
+    name: Build Backend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: ore-backend.exe
+            platform_id: win
+          - os: macos-latest
+            artifact_name: ore-backend
+            platform_id: mac
+          - os: ubuntu-latest
+            artifact_name: ore-backend
+            platform_id: linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Compile standalone backend binary with PyInstaller
+        working-directory: backend
+        run: python build_binary.py
+
+      - name: Upload compiled binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binary-${{ matrix.platform_id }}
+          path: backend/dist/${{ matrix.artifact_name }}
+          if-no-files-found: error
+
+  build-desktop:
+    name: Package Desktop (${{ matrix.os }})
+    needs: build-backend
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform_id: win
+            builder_cmd: npm run dist:win
+          - os: macos-latest
+            platform_id: mac
+            builder_cmd: npm run dist:mac
+          - os: ubuntu-latest
+            platform_id: linux
+            builder_cmd: npm run dist:linux
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download backend binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary-${{ matrix.platform_id }}
+          path: backend/dist
+
+      - name: Set execution permissions (macOS & Linux)
+        if: matrix.os != 'windows-latest'
+        run: chmod +x backend/dist/ore-backend
+
+      - name: Build Next.js static frontend
+        working-directory: frontend
+        run: |
+          npm ci || npm install
+          npm run build
+
+      - name: Package Electron Desktop Application
+        working-directory: desktop
+        run: |
+          npm ci || npm install
+          npm run build:main
+          ${{ matrix.builder_cmd }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Installers to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.AppImage
+            desktop/release/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

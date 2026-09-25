@@ -1,19 +1,16 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form
 import shutil
 import os
 import json
 import time
 from datetime import datetime
 
+from config import UPLOADS_DIR, META_FILE
 from Ai.pdf_ingestion import extract_pages
 from Ai.pdf_chunking import chunk_pages
-from Ai.vector_store import store_chunk, delete_document_chunks, get_total_chunks
+from Ai.vector_store import store_chunks_batch, delete_document_chunks, get_total_chunks
 
 router = APIRouter()
-
-UPLOAD_FOLDER = "uploads"
-META_FILE = os.path.join(UPLOAD_FOLDER, "documents_meta.json")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 def _load_meta():
@@ -28,6 +25,7 @@ def _load_meta():
 
 def _save_meta(meta):
     try:
+        os.makedirs(os.path.dirname(META_FILE), exist_ok=True)
         with open(META_FILE, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
     except Exception:
@@ -40,15 +38,14 @@ async def upload_pdf(
     chunk_size: int = Form(500),
     chunk_overlap: int = Form(50)
 ):
-    # Allow only PDF files
-    if not file.filename.lower().endswith(".pdf"):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
         return {
             "success": False,
             "message": "Only PDF files are allowed."
         }
 
-    # Save uploaded PDF
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    file_path = os.path.join(UPLOADS_DIR, file.filename)
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -56,33 +53,23 @@ async def upload_pdf(
     file_size = os.path.getsize(file_path)
     file_size_str = f"{file_size / 1024:.1f} KB" if file_size < 1024 * 1024 else f"{file_size / (1024 * 1024):.2f} MB"
 
-    # Extract pages from PDF
     start_time = time.strftime("%H:%M:%S")
     pages = extract_pages(file_path)
     char_count = sum(len(p.get("text", "")) for p in pages)
 
-    # Create chunks
     chunks = chunk_pages(pages, chunk_size=chunk_size, overlap=chunk_overlap)
 
     # Clean existing chunks for this file before storing new ones
     delete_document_chunks(file.filename)
 
-    # Store each chunk in ChromaDB
+    # Store chunks into vector store via active provider
     try:
-        for chunk in chunks:
-            chunk_id = f"{file.filename}_{chunk['chunk_id']}"
-            store_chunk(
-                chunk_id=chunk_id,
-                text=chunk["text"],
-                page=chunk["page"],
-                source=file.filename
-            )
+        store_chunks_batch(chunks, source=file.filename)
     except Exception as e:
         return {
             "success": False,
-            "message": f"Embedding failed: {str(e)}. Please ensure Ollama is running (`ollama serve`) and 'nomic-embed-text' is pulled."
+            "message": f"Embedding failed: {str(e)}"
         }
-
 
     time_now = time.strftime("%H:%M:%S")
     logs = [
@@ -90,8 +77,7 @@ async def upload_pdf(
         {"timestamp": start_time, "level": "INFO", "message": "Extracting pages via PyMuPDF (fitz)"},
         {"timestamp": start_time, "level": "INFO", "message": f"Successfully extracted {char_count} characters across {len(pages)} pages"},
         {"timestamp": time_now, "level": "INFO", "message": f"Segmented text into {len(chunks)} semantic chunks (chunk_size={chunk_size}, overlap={chunk_overlap})"},
-        {"timestamp": time_now, "level": "INFO", "message": "Connecting to local Ollama embed client (nomic-embed-text)"},
-        {"timestamp": time_now, "level": "INFO", "message": f"Generated vector embeddings for {len(chunks)} chunks"},
+        {"timestamp": time_now, "level": "INFO", "message": "Generating vector embeddings with active provider"},
         {"timestamp": time_now, "level": "INFO", "message": f"Successfully indexed {len(chunks)} chunks into Chroma vector DB"}
     ]
 
@@ -130,16 +116,14 @@ async def upload_pdf(
 def get_documents():
     meta = _load_meta()
     docs = []
-    # Verify files still exist in uploads folder
     for fname, d in list(meta.items()):
-        fpath = os.path.join(UPLOAD_FOLDER, fname)
+        fpath = os.path.join(UPLOADS_DIR, fname)
         if os.path.exists(fpath):
             docs.append(d)
         else:
             del meta[fname]
     _save_meta(meta)
 
-    # Sort most recent first
     docs.reverse()
     return {"documents": docs, "total_chunks": get_total_chunks()}
 
@@ -147,7 +131,7 @@ def get_documents():
 @router.delete("/documents/{filename}")
 def delete_document(filename: str):
     delete_document_chunks(filename)
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    file_path = os.path.join(UPLOADS_DIR, filename)
     if os.path.exists(file_path):
         try:
             os.remove(file_path)
@@ -159,4 +143,4 @@ def delete_document(filename: str):
         del meta[filename]
         _save_meta(meta)
 
-    return {"success": True, "message": f"Document {filename} deleted successfully"}
+    return {"success": True, "message": f"Document {filename} deleted successfully"}

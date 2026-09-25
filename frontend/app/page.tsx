@@ -38,8 +38,10 @@ import {
   generateVivaExam,
   DocumentItem,
   Citation,
-  LogLine
+  LogLine,
+  ProviderStatus
 } from "@/lib/api"
+import { SettingsModal } from "@/components/SettingsModal"
 
 interface Message {
   id: string
@@ -100,6 +102,8 @@ export default function ShadcnDashboard() {
   const [chunkSize, setChunkSize] = React.useState(500)
   const [chunkOverlap, setChunkOverlap] = React.useState(50)
   const [embedModel, setEmbedModel] = React.useState("nomic-embed-text")
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
+  const [providerStatus, setProviderStatus] = React.useState<ProviderStatus | null>(null)
 
   // Logs terminal drawer state
   const [viewingLogsDoc, setViewingLogsDoc] = React.useState<DocumentItem | null>(null)
@@ -133,6 +137,9 @@ export default function ShadcnDashboard() {
       setBackendStatus("online")
       if (data?.total_chunks !== undefined) {
         setTotalDbChunks(data.total_chunks)
+      }
+      if (data?.provider) {
+        setProviderStatus(data.provider)
       }
     } else {
       setBackendStatus("offline")
@@ -384,6 +391,28 @@ export default function ShadcnDashboard() {
                 </div>
               )}
             </div>
+
+            {/* AI Provider Engine Button */}
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-zinc-800/80 bg-zinc-900/40 hover:bg-zinc-850 hover:border-zinc-700 text-xs font-medium text-zinc-300 transition cursor-pointer"
+              title="Configure AI Provider & Keys"
+            >
+              <Cpu className="w-3.5 h-3.5 text-violet-400" />
+              <span className="hidden sm:inline">AI:</span>
+              <span className="font-semibold text-zinc-200 capitalize">
+                {providerStatus?.active_provider === "gemini"
+                  ? "Gemini"
+                  : providerStatus?.active_provider === "openai"
+                  ? "OpenAI"
+                  : "Ollama"}
+              </span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  providerStatus?.ready ? "bg-emerald-400" : "bg-amber-400 animate-pulse"
+                }`}
+              />
+            </button>
 
             <Button
               onClick={() => fileInputRef.current?.click()}
@@ -1190,29 +1219,34 @@ export default function ShadcnDashboard() {
               </div>
             </div>
 
-            {/* Settings Card: Embedding Model Config */}
+            {/* Settings Card: AI Provider & API Keys */}
             <div className="border border-zinc-800/80 rounded-xl bg-zinc-950/40 backdrop-blur-md overflow-hidden shadow-lg">
-              <div className="p-6 space-y-6">
-                <div>
-                  <h4 className="text-base font-semibold text-white">Ollama Embedding Model</h4>
-                  <p className="text-sm text-zinc-500 mt-1">Select the semantic embedding model utilized by Ollama.</p>
-                </div>
-
-                <div className="max-w-md">
-                  <select
-                    value={embedModel}
-                    onChange={(e) => setEmbedModel(e.target.value)}
-                    className="w-full p-2.5 bg-black border border-zinc-800 rounded-lg text-sm text-zinc-300 outline-none focus:border-zinc-500 cursor-pointer font-medium"
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-base font-semibold text-white">AI Engine & Cloud Fallback</h4>
+                    <p className="text-sm text-zinc-500 mt-1">
+                      Choose between local Ollama or cloud providers (Google Gemini, OpenAI, Groq) with zero terminal setup.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="bg-violet-600 hover:bg-violet-500 text-white font-medium text-xs px-3.5 py-1.5 rounded-lg"
                   >
-                    <option value="nomic-embed-text">nomic-embed-text (768-dim, Default)</option>
-                    <option value="bge-large-en-v1.5">bge-large-en-v1.5 (1024-dim, High Precision)</option>
-                    <option value="all-minilm">all-minilm (384-dim, Fast)</option>
-                  </select>
+                    Configure Providers
+                  </Button>
                 </div>
-              </div>
-              <div className="px-6 py-3.5 bg-zinc-900/30 border-t border-zinc-800/60 flex items-center justify-between text-xs text-zinc-500 font-mono">
-                <span>Ensure the model is pulled locally (<code className="text-zinc-300">ollama pull {embedModel}</code>)</span>
-                <span className="text-zinc-400">Ready</span>
+                <div className="flex items-center gap-3 pt-2 text-xs text-zinc-400">
+                  <span className="text-zinc-500">Active Provider:</span>
+                  <span className="font-semibold text-zinc-200 capitalize">
+                    {providerStatus?.active_provider || "Ollama"}
+                  </span>
+                  <span className="text-zinc-700">•</span>
+                  <span className="text-zinc-500">Status:</span>
+                  <span className={providerStatus?.ready ? "text-emerald-400 font-medium" : "text-amber-400 font-medium"}>
+                    {providerStatus?.message || "Checking status..."}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1270,6 +1304,13 @@ export default function ShadcnDashboard() {
           </div>
         </div>
       )}
+
+      {/* ⚙️ AI Engine Settings & Onboarding Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSaved={checkHealth}
+      />
     </div>
   )
 }

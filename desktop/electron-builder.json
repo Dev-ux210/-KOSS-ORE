@@ -1,0 +1,47 @@
+{
+  "appId": "com.kaju.ore",
+  "productName": "ORE",
+  "directories": {
+    "output": "release",
+    "buildResources": "resources"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "extraResources": [
+    {
+      "from": "../frontend/out",
+      "to": "app/out"
+    },
+    {
+      "from": "../backend/dist",
+      "to": "bin",
+      "filter": [
+        "ore-backend*"
+      ]
+    }
+  ],
+  "win": {
+    "target": "nsis"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "category": "public.app-category.education"
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Education"
+  }
+}

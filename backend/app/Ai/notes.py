@@ -1,5 +1,5 @@
+from Ai.providers import chat_completion
 
-import ollama
 
 def generate_notes(text: str) -> str:
     prompt = f"""
@@ -18,14 +18,4 @@ def generate_notes(text: str) -> str:
     {text}
     """
 
-    response = ollama.chat(
-        model="llama3",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-    )
-
-    return response["message"]["content"]
+    return chat_completion(prompt)

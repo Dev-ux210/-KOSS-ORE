@@ -1,5 +1,5 @@
+from Ai.providers import chat_completion
 
-import ollama
 
 def generate_viva(text: str) -> str:
     prompt = f"""
@@ -15,7 +15,7 @@ Requirements:
 - Include conceptual, application-based, and definition questions.
 - Do not ask the user for more information.
 - Do not mention the input material.
-- Have different types of Questions - MCQ,TRUE/FALSE, Subjective Questions.
+- Have different types of Questions - MCQ, TRUE/FALSE, Subjective Questions.
 - Provide all Answers in the end.
 
 Study Material:
@@ -23,14 +23,4 @@ Study Material:
 {text}
 """
 
-    response = ollama.chat(
-        model="llama3",
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-    )
-
-    return response["message"]["content"]
+    return chat_completion(prompt)

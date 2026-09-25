@@ -1,19 +1,16 @@
-import chromadb
-from Ai.pdf_embedding import get_embedding
+from Ai.providers import get_embedding
+from Ai.vector_store import get_collection
 
-client = chromadb.PersistentClient("./chroma_db")
-collection = client.get_or_create_collection(
-    name = "pdf_chunked"
-)
 
 def retrieve_context(question, num_results=3):
     try:
-        if collection.count() == 0:
+        col = get_collection()
+        if col.count() == 0:
             return ""
         emb = get_embedding(question)
-        results = collection.query(
+        results = col.query(
             query_embeddings=[emb],
-            n_results=min(num_results, collection.count())
+            n_results=min(num_results, col.count())
         )
         if not results or not results.get("documents") or not results["documents"][0]:
             return ""
@@ -24,13 +21,14 @@ def retrieve_context(question, num_results=3):
 
 def retrieve_context_with_citations(question, num_results=4):
     try:
-        if collection.count() == 0:
+        col = get_collection()
+        if col.count() == 0:
             return "", []
 
         emb = get_embedding(question)
-        results = collection.query(
+        results = col.query(
             query_embeddings=[emb],
-            n_results=min(num_results, collection.count())
+            n_results=min(num_results, col.count())
         )
 
         docs = results.get("documents", [[]])[0]
@@ -55,10 +53,3 @@ def retrieve_context_with_citations(question, num_results=4):
         return context_str, citations
     except Exception as e:
         raise RuntimeError(f"Embedding or vector retrieval failed: {str(e)}")
-
-
-
-
-        
-    
-

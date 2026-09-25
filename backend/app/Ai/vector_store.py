@@ -1,18 +1,25 @@
 import chromadb
-from Ai.pdf_embedding import get_embedding
+from config import CHROMA_DIR
+from Ai.providers import get_embedding, get_embeddings
 
-#Open ChromaDB
-client = chromadb.PersistentClient(path = "./chroma_db")
-collection = client.get_or_create_collection(
-    name = "pdf_chunked"
-)
+_client = None
+_collection = None
 
-#Chunk store
+
+def get_collection():
+    global _client, _collection
+    if _collection is None:
+        _client = chromadb.PersistentClient(path=CHROMA_DIR)
+        _collection = _client.get_or_create_collection(name="pdf_chunked")
+    return _collection
+
+
 def store_chunk(chunk_id, text, page, source=""):
     metadata = {"page": page}
     if source:
         metadata["source"] = source
-    collection.add(
+    col = get_collection()
+    col.add(
         ids=[str(chunk_id)],
         documents=[text],
         embeddings=[get_embedding(text)],
@@ -20,48 +27,41 @@ def store_chunk(chunk_id, text, page, source=""):
     )
 
 
-#Chunk search
+def store_chunks_batch(chunks, source=""):
+    if not chunks:
+        return
+    col = get_collection()
+    ids = [str(f"{source}_{c['chunk_id']}") for c in chunks]
+    texts = [c["text"] for c in chunks]
+    metas = [{"page": c["page"], "source": source} for c in chunks]
+    embeddings = get_embeddings(texts)
+    col.add(
+        ids=ids,
+        documents=texts,
+        embeddings=embeddings,
+        metadatas=metas
+    )
+
+
 def search(query, n_results=3):
-    if collection.count() == 0:
+    col = get_collection()
+    if col.count() == 0:
         return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
-    results = collection.query(
+    results = col.query(
         query_embeddings=[get_embedding(query)],
-        n_results=min(n_results, collection.count())
+        n_results=min(n_results, col.count())
     )
     return results
 
 
 def delete_document_chunks(source):
     try:
-        collection.delete(where={"source": source})
+        col = get_collection()
+        col.delete(where={"source": source})
     except Exception:
         pass
 
 
 def get_total_chunks():
-    return collection.count()
-
-
-"""
-# Example: Store data
-store_chunk(
-    chunk_id=1,
-    text="Retrieval Augmented Generation combines search with LLMs.",
-    page=5
-)
-
-store_chunk(
-    chunk_id=2,
-    text="Neural networks are a subset of machine learning.",
-    page=8
-)
-
-# Example: Search
-results = search("What is RAG?")
-
-for i, doc in enumerate(results["documents"][0]):
-    print(f"Result {i + 1}:")
-    print(doc)
-    print("Page:", results["metadatas"][0][i]["page"])
-    print("-" * 40)
-"""
+    col = get_collection()
+    return col.count()

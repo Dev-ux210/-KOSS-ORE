@@ -1,4 +1,4 @@
-import ollama
+from Ai.providers import chat_completion
 from Ai.retriever import retrieve_context, retrieve_context_with_citations
 
 
@@ -18,18 +18,9 @@ def answer_questions(question):
     )
 
     try:
-        response = ollama.chat(
-            model="llama3",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
-        return response["message"]["content"]
+        return chat_completion(prompt)
     except Exception as e:
-        return f"Could not connect to Ollama (llama3): {str(e)}. Please make sure 'ollama serve' is running and the model is pulled."
+        return f"AI Generation error: {str(e)}"
 
 
 def answer_questions_with_citations(question):
@@ -37,7 +28,7 @@ def answer_questions_with_citations(question):
         context, citations = retrieve_context_with_citations(question)
     except Exception as e:
         return {
-            "answer": f"Ollama embedding error: {str(e)}. Please ensure 'ollama serve' is running and 'nomic-embed-text' is pulled.",
+            "answer": f"Embedding retrieval error: {str(e)}",
             "citations": []
         }
 
@@ -46,7 +37,6 @@ def answer_questions_with_citations(question):
             "answer": "No indexed context found in the repository. Please upload a PDF document first to index its contents.",
             "citations": []
         }
-
 
     prompt = (
         "You are an expert scientific and academic assistant answering questions based solely on the provided context.\n\n"
@@ -59,23 +49,13 @@ def answer_questions_with_citations(question):
     )
 
     try:
-        response = ollama.chat(
-            model="llama3",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
+        answer_text = chat_completion(prompt)
         return {
-            "answer": response["message"]["content"],
+            "answer": answer_text,
             "citations": citations
         }
     except Exception as e:
         return {
-            "answer": f"Ollama connection error: {str(e)}. Please ensure 'ollama serve' is running and 'llama3' is pulled (`ollama pull llama3`).",
+            "answer": f"AI Generation error: {str(e)}",
             "citations": citations
         }
-
-
